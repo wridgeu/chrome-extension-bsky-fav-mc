@@ -1,269 +1,229 @@
 // Runs on https://bsky.app/*
-// When on /saved, finds anchors matching /profile/*/post/* and enables middle-click handlers,
-// and reports counts to the background for icon rendering.
+// When the current route is /saved, scans for saved post anchors that match /profile/*/post/*
+// Enables middle-click to open the post in a new tab and notifies the background page with the count.
 
 const PROFILE_POST_SELECTOR = 'a[href^="/profile/"][href*="/post/"]';
-const HANDLED_FLAG = 'bskySavedHandled';
-const CANCEL_LISTENER_KEY = 'bskySavedCancelListener';
-const HANDLED_FLAG_ANCHOR = 'bskySavedHandledAnchor';
+const HISTORY_PATCH_FLAG = '__bskySavedHistoryPatched';
+const HANDLED_CONTAINER_FLAG = 'bskySavedHandled';
+const HANDLED_ANCHOR_FLAG = 'bskySavedHandledAnchor';
+const SCAN_DEBOUNCE_MS = 100;
+const MIDDLE_BUTTON = 1;
 
-let lastCountReported = -1;
-let scanScheduled = false;
+const state = {
+	lastReportedCount: -1,
+	scanTimer: null,
+};
 
-function isOnSavedPage() {
-	return location.hostname === 'bsky.app' && location.pathname.startsWith('/saved');
-}
+const isOnSavedPage = () => location.hostname === 'bsky.app' && location.pathname.startsWith('/saved');
 
-function toAbsoluteUrl(href) {
+const toAbsoluteUrl = (href) => {
 	try {
 		return new URL(href, location.origin).toString();
 	} catch {
 		return href;
 	}
-}
+};
 
-function attachMiddleClick(container, anchor) {
-	if (!container || container.dataset[HANDLED_FLAG] === '1') return;
-	container.dataset[HANDLED_FLAG] = '1';
+const preventMiddleClickDefaults = (event) => {
+	if (event.button !== MIDDLE_BUTTON) return;
+	event.preventDefault();
+	event.stopPropagation();
+	event.stopImmediatePropagation?.();
+};
+
+const handleAuxClick = (url) => (event) => {
+	if (event.button !== MIDDLE_BUTTON) return;
+	event.preventDefault();
+	event.stopPropagation();
+	window.open(url, '_blank', 'noopener');
+};
+
+function ensureMiddleClick(container, anchor) {
+	if (!container || container.dataset[HANDLED_CONTAINER_FLAG] === '1') return;
+	const href = anchor.getAttribute('href') ?? '';
+	const absoluteUrl = toAbsoluteUrl(href);
+
+	container.dataset[HANDLED_CONTAINER_FLAG] = '1';
 	container.style.cursor = 'pointer';
 
-	const href = anchor.getAttribute('href') || '';
-	const url = toAbsoluteUrl(href);
+	container.addEventListener('pointerdown', preventMiddleClickDefaults, true);
+	container.addEventListener('pointerup', preventMiddleClickDefaults, true);
+	container.addEventListener('mousedown', preventMiddleClickDefaults, true);
+	container.addEventListener('mouseup', preventMiddleClickDefaults, true);
+	container.addEventListener('auxclick', handleAuxClick(absoluteUrl), true);
+}
 
-	const cancelMiddle = (ev) => {
-		if (ev.button === 1) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			if (typeof ev.stopImmediatePropagation === 'function') {
-				ev.stopImmediatePropagation();
-			}
-		}
-	};
+function ensureAnchorMiddleClick(anchor) {
+	if (!anchor || anchor.dataset[HANDLED_ANCHOR_FLAG] === '1') return;
+	const href = anchor.getAttribute('href') ?? '';
+	const absoluteUrl = toAbsoluteUrl(href);
 
-	const openOnAuxClick = (ev) => {
-		if (ev.button === 1) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			window.open(url, '_blank', 'noopener');
-		}
-	};
-
-	container.addEventListener('pointerdown', cancelMiddle, true);
-	container.addEventListener('pointerup', cancelMiddle, true);
-	container.addEventListener('mousedown', cancelMiddle, true);
-	container.addEventListener('mouseup', cancelMiddle, true);
-	container.addEventListener('auxclick', openOnAuxClick, true);
-
-	// Store references so we could remove later if needed (not required now but avoids duplicates)
-	container.dataset[CANCEL_LISTENER_KEY] = '1';
+	anchor.dataset[HANDLED_ANCHOR_FLAG] = '1';
+	anchor.addEventListener('pointerdown', preventMiddleClickDefaults, true);
+	anchor.addEventListener('pointerup', preventMiddleClickDefaults, true);
+	anchor.addEventListener('mousedown', preventMiddleClickDefaults, true);
+	anchor.addEventListener('mouseup', preventMiddleClickDefaults, true);
+	anchor.addEventListener('auxclick', handleAuxClick(absoluteUrl), true);
 }
 
 function findInteractiveContainer(element) {
-	// Prefer the focusable clickable wrapper
 	return element.closest('div[role="link"][tabindex]');
 }
 
-function attachMiddleClickToAnchor(anchor) {
-	if (!anchor || anchor.dataset[HANDLED_FLAG_ANCHOR] === '1') return;
-	anchor.dataset[HANDLED_FLAG_ANCHOR] = '1';
-	const href = anchor.getAttribute('href') || '';
-	const url = toAbsoluteUrl(href);
-
-	const cancelMiddle = (ev) => {
-		if (ev.button === 1) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			if (typeof ev.stopImmediatePropagation === 'function') {
-				ev.stopImmediatePropagation();
-			}
-		}
-	};
-	const openOnAuxClick = (ev) => {
-		if (ev.button === 1) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			window.open(url, '_blank', 'noopener');
-		}
-	};
-	anchor.addEventListener('pointerdown', cancelMiddle, true);
-	anchor.addEventListener('pointerup', cancelMiddle, true);
-	anchor.addEventListener('mousedown', cancelMiddle, true);
-	anchor.addEventListener('mouseup', cancelMiddle, true);
-	anchor.addEventListener('auxclick', openOnAuxClick, true);
-}
-
-function collectProfileAnchors(root) {
-	const results = [];
-	const visit = (node) => {
-		if (!node) return;
-		if (node.nodeType === Node.ELEMENT_NODE) {
-			const el = /** @type {Element} */ (node);
-			if (el.matches && el.matches(PROFILE_POST_SELECTOR)) {
-				results.push(el);
-			}
-			// Traverse shadow DOM if present
-			if (el.shadowRoot) {
-				visit(el.shadowRoot);
-			}
-		}
-		const children = node.children || node.childNodes;
-		for (const child of children) {
-			visit(child);
-		}
-	};
-	visit(root);
-	return results;
-}
-
-function isElementVisible(el) {
+function isVisible(element) {
 	try {
-		const style = window.getComputedStyle(el);
-		if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0) {
+		const style = window.getComputedStyle(element);
+		if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity ?? '1') === 0) {
 			return false;
 		}
-		// offsetParent is null for display:none or fixed-position body children in some cases;
-		// fall back to rect size.
-		const rect = el.getBoundingClientRect();
-		if ((rect.width || rect.right - rect.left) <= 0 || (rect.height || rect.bottom - rect.top) <= 0) {
-			return false;
-		}
-		return true;
+		const rect = element.getBoundingClientRect();
+		return rect.width > 0 && rect.height > 0;
 	} catch {
 		return true;
 	}
 }
 
-function scanAndBind() {
-	scanScheduled = false;
-
-	// If not on /saved, report 0 and bail
-	if (!isOnSavedPage()) {
-		if (lastCountReported !== 0) {
-			lastCountReported = 0;
-			try {
-				chrome.runtime.sendMessage({ type: 'FOUND_COUNT', count: 0 });
-			} catch {}
+function collectProfileAnchors(root) {
+	const collected = [];
+	const stack = [root];
+	while (stack.length) {
+		const node = stack.pop();
+		if (!node) continue;
+		if (node.nodeType === Node.ELEMENT_NODE) {
+			const element = /** @type {Element} */ (node);
+			if (element.matches?.(PROFILE_POST_SELECTOR)) {
+				collected.push(element);
+			}
+			if (element.shadowRoot) {
+				stack.push(element.shadowRoot);
+			}
+			stack.push(...element.children);
+		} else if (node.childNodes?.length) {
+			stack.push(...node.childNodes);
 		}
+	}
+	return collected;
+}
+
+function sendCount(count) {
+	if (state.lastReportedCount === count) return;
+	state.lastReportedCount = count;
+	try {
+		chrome.runtime.sendMessage({ type: 'FOUND_COUNT', count });
+	} catch {
+		// Ignore: runtime might be unavailable during shutdown
+	}
+}
+
+function scanAndBind() {
+	state.scanTimer = null;
+	if (!isOnSavedPage()) {
+		sendCount(0);
 		return;
 	}
 
-	// Limit search to main content area if present to avoid counting hidden/off-route content
-	const scope = document.querySelector('main') || document;
+	const scope = document.querySelector('main') ?? document;
 	const anchors = collectProfileAnchors(scope);
-	let boundCount = 0;
+	const uniqueHrefs = new Set();
 
-	// Deduplicate by href to avoid double counting across reused/memoized DOM nodes
-	const hrefSet = new Set();
+	for (const anchor of anchors) {
+		const href = anchor.getAttribute('href') ?? '';
+		if (!/^\/profile\/[^/]+\/post\/[^/]+/.test(href)) continue;
+		if (!isVisible(anchor)) continue;
 
-	anchors.forEach((anchor) => {
-		const a = /** @type {HTMLAnchorElement} */ (anchor);
-		const href = a.getAttribute('href') || '';
-		// Ensure it actually matches /profile/.../post/... (guard against false positives)
-		if (!/^\/profile\/[^/]+\/post\/[^/]+/.test(href)) return;
-		// Require visibility to avoid counting hidden off-route DOM
-		if (!isElementVisible(a)) return;
-		const container = findInteractiveContainer(a);
-		if (container && !isElementVisible(container)) return;
-		hrefSet.add(href);
-		attachMiddleClickToAnchor(a);
-		if (container) {
-			const before = container.dataset[HANDLED_FLAG] === '1';
-			attachMiddleClick(container, a);
-			if (!before) boundCount += 1;
-		}
-	});
+		const container = findInteractiveContainer(anchor);
+		if (container && !isVisible(container)) continue;
 
-	const totalDetected = hrefSet.size;
-	if (totalDetected !== lastCountReported) {
-		lastCountReported = totalDetected;
-		try {
-			chrome.runtime.sendMessage({ type: 'FOUND_COUNT', count: totalDetected });
-		} catch {
-			// Ignore if messaging is not available yet
-		}
+		uniqueHrefs.add(href);
+		ensureAnchorMiddleClick(anchor);
+		if (container) ensureMiddleClick(container, anchor);
 	}
+
+	sendCount(uniqueHrefs.size);
 }
 
 function scheduleScan() {
-	if (scanScheduled) return;
-	scanScheduled = true;
-	// Debounce rapid DOM mutations
-	setTimeout(scanAndBind, 100);
+	if (state.scanTimer !== null) return;
+	state.scanTimer = setTimeout(scanAndBind, SCAN_DEBOUNCE_MS);
 }
 
-// Initial scan
-if (document.readyState === 'loading') {
-	document.addEventListener('DOMContentLoaded', scheduleScan, { once: true });
-} else {
-	scheduleScan();
-}
-
-// Detect client-side route changes (pushState/replaceState) and re-scan when path changes
-(function patchHistory() {
+function patchHistoryOnce() {
+	if (window[HISTORY_PATCH_FLAG]) return;
+	window[HISTORY_PATCH_FLAG] = true;
 	const dispatch = () => window.dispatchEvent(new Event('locationchange'));
-	const origPush = history.pushState;
-	const origReplace = history.replaceState;
-	history.pushState = function () {
-		const ret = origPush.apply(this, arguments);
-		// Force next report regardless of previous value to avoid stale counts
-		lastCountReported = -1;
+	const originalPush = history.pushState;
+	const originalReplace = history.replaceState;
+
+	history.pushState = function pushStatePatched() {
+		const result = originalPush.apply(this, arguments);
+		state.lastReportedCount = -1;
 		dispatch();
-		return ret;
+		return result;
 	};
-	history.replaceState = function () {
-		const ret = origReplace.apply(this, arguments);
-		lastCountReported = -1;
+
+	history.replaceState = function replaceStatePatched() {
+		const result = originalReplace.apply(this, arguments);
+		state.lastReportedCount = -1;
 		dispatch();
-		return ret;
+		return result;
 	};
-	window.addEventListener('popstate', dispatch);
-	window.addEventListener('locationchange', () => {
-		lastCountReported = -1;
+
+	window.addEventListener('popstate', () => {
+		state.lastReportedCount = -1;
 		scheduleScan();
 	});
-})();
-
-// Observe dynamic changes (the page is client-rendered and updates as you scroll)
-const observer = new MutationObserver((mutations) => {
-	for (const m of mutations) {
-		if (m.addedNodes && m.addedNodes.length > 0) {
-			scheduleScan();
-			break;
-		}
-	}
-});
-
-try {
-	observer.observe(document.documentElement || document.body, {
-		childList: true,
-		subtree: true,
+	window.addEventListener('locationchange', () => {
+		state.lastReportedCount = -1;
+		scheduleScan();
 	});
-} catch {
-	// In rare cases, observing can fail; the initial scan still works.
 }
 
-// Re-scan on BFCache restore or same-tab back/forward without full reload
-window.addEventListener('pageshow', (ev) => {
-	// When coming back from another site, BFCache restore may skip DOM events
-	// Always re-scan when page is shown again
-	scheduleScan();
-});
+function initObservers() {
+	const observer = new MutationObserver((mutations) => {
+		for (const mutation of mutations) {
+			if (mutation.addedNodes?.length) {
+				scheduleScan();
+				break;
+			}
+		}
+	});
 
-// Re-scan on history navigation inside same tab
-window.addEventListener('popstate', () => {
-	scheduleScan();
-});
+	try {
+		observer.observe(document.documentElement ?? document.body, {
+			childList: true,
+			subtree: true,
+		});
+	} catch {
+		// Observing may fail in rare cases; rely on other signals
+	}
 
-// Re-scan when tab becomes visible again
-document.addEventListener('visibilitychange', () => {
-	if (document.visibilityState === 'visible') {
+	window.addEventListener('pageshow', scheduleScan, { passive: true });
+	window.addEventListener('popstate', scheduleScan, { passive: true });
+	window.addEventListener('focus', scheduleScan, { passive: true });
+	document.addEventListener(
+		'visibilitychange',
+		() => {
+			if (document.visibilityState === 'visible') scheduleScan();
+		},
+		{ passive: true },
+	);
+}
+
+function bootstrap() {
+	patchHistoryOnce();
+	initObservers();
+	if (document.readyState === 'loading') {
+		document.addEventListener(
+			'DOMContentLoaded',
+			() => {
+				state.lastReportedCount = -1;
+				scheduleScan();
+			},
+			{ once: true },
+		);
+	} else {
 		scheduleScan();
 	}
-});
+}
 
-// Re-scan on window focus (covers some edge cases)
-window.addEventListener('focus', () => {
-	scheduleScan();
-});
-
-
+bootstrap();
