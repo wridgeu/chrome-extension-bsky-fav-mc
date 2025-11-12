@@ -123,20 +123,31 @@ function scanAndBind() {
 	}
 
 	const scope = document.querySelector('main') ?? document;
-	const anchors = collectProfileAnchors(scope);
+	// Find all top-level saved post containers first
+	const topLevelContainers = Array.from(scope.querySelectorAll('div[role="link"][tabindex]')).filter(
+		(container) => {
+			// Only count containers that are visible and don't have another container as a parent
+			if (!isVisible(container)) return false;
+			// Check if this container is nested inside another container (exclude nested posts)
+			const parentContainer = container.parentElement?.closest('div[role="link"][tabindex]');
+			return !parentContainer;
+		},
+	);
+
 	const uniqueHrefs = new Set();
 
-	for (const anchor of anchors) {
+	for (const container of topLevelContainers) {
+		// Find the post link within this container
+		const anchor = container.querySelector(PROFILE_POST_SELECTOR);
+		if (!anchor) continue;
+
 		const href = anchor.getAttribute('href') ?? '';
 		if (!/^\/profile\/[^/]+\/post\/[^/]+/.test(href)) continue;
 		if (!isVisible(anchor)) continue;
 
-		const container = findInteractiveContainer(anchor);
-		if (container && !isVisible(container)) continue;
-
 		uniqueHrefs.add(href);
 		ensureAnchorMiddleClick(anchor);
-		if (container) ensureMiddleClick(container, anchor);
+		ensureMiddleClick(container, anchor);
 	}
 
 	sendCount(uniqueHrefs.size);
