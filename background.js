@@ -13,7 +13,6 @@ let svgViewBoxSize = 640;
 const renderedIconCache = new Map(); // state => {16: ImageData, 32: ImageData}
 const tabCounts = new Map();
 
-const isSavedUrl = (url = '') => /^https:\/\/bsky\.app\/saved/.test(url);
 const limitCountLabel = (count = 0) => {
 	if (count <= 0 || !Number.isFinite(count)) return '';
 	if (count > MAX_SHOWN_COUNT) return `${MAX_SHOWN_COUNT}+`;
@@ -121,11 +120,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 	try {
-		const tab = await chrome.tabs.get(tabId);
-		if (!isSavedUrl(tab?.url)) {
-			resetTab(tabId);
-			return;
-		}
 		const currentCount = tabCounts.get(tabId) ?? 0;
 		await applyIcon(tabId, currentCount);
 	} catch (error) {
