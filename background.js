@@ -5,8 +5,6 @@ const FILL_COLORS = {
 	enabled: '#2196F3',
 	disabled: '#A0A0A0',
 };
-const FALLBACK_PATH =
-	'M320 0A320 320 0 1 0 640 320 320 320 0 0 0 320 0Z'; // simple circle in case parsing fails
 const MAX_SHOWN_COUNT = 99;
 
 let svgPathData = null;
@@ -24,26 +22,26 @@ const limitCountLabel = (count = 0) => {
 
 async function ensureSvgPathLoaded() {
 	if (svgPathData) return;
-	try {
-		const svgUrl = chrome.runtime.getURL('icons/icon-blue.svg');
-		const res = await fetch(svgUrl);
-		const svgText = await res.text();
-		const viewBoxMatch = svgText.match(/viewBox=["']\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*["']/i);
-		if (viewBoxMatch) {
-			const width = Number(viewBoxMatch[1]);
-			const height = Number(viewBoxMatch[2]);
-			const maxSize = Math.max(width || 0, height || 0);
-			if (maxSize > 0) {
-				svgViewBoxSize = maxSize;
-			}
-		}
-		const pathMatch = svgText.match(/<path[^>]*\sd=["']([^"']+)["']/i);
-		svgPathData = pathMatch ? pathMatch[1] : FALLBACK_PATH;
-	} catch (error) {
-		console.error('Failed to load icon SVG; falling back to circle.', error);
-		svgPathData = FALLBACK_PATH;
-		svgViewBoxSize = 640;
+	const svgUrl = chrome.runtime.getURL('icons/icon-blue.svg');
+	const res = await fetch(svgUrl);
+	if (!res.ok) {
+		throw new Error(`Failed to fetch icon SVG: ${res.status} ${res.statusText}`);
 	}
+	const svgText = await res.text();
+	const viewBoxMatch = svgText.match(/viewBox=["']\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*["']/i);
+	if (viewBoxMatch) {
+		const width = Number(viewBoxMatch[1]);
+		const height = Number(viewBoxMatch[2]);
+		const maxSize = Math.max(width || 0, height || 0);
+		if (maxSize > 0) {
+			svgViewBoxSize = maxSize;
+		}
+	}
+	const pathMatch = svgText.match(/<path[^>]*\sd=["']([^"']+)["']/i);
+	if (!pathMatch || !pathMatch[1]) {
+		throw new Error('Failed to parse SVG path data from icon-blue.svg');
+	}
+	svgPathData = pathMatch[1];
 }
 
 async function getIconImages(state) {
