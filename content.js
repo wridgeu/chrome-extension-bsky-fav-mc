@@ -3,7 +3,6 @@
 // Enables middle-click to open the post in a new tab and notifies the background page with the count.
 
 const PROFILE_POST_SELECTOR = 'a[href^="/profile/"][href*="/post/"]';
-const HISTORY_PATCH_FLAG = '__bskySavedHistoryPatched';
 const HANDLED_CONTAINER_FLAG = 'bskySavedHandled';
 const HANDLED_ANCHOR_FLAG = 'bskySavedHandledAnchor';
 const SCAN_DEBOUNCE_MS = 100;
@@ -188,21 +187,21 @@ function scanAndBind() {
 
 	const scope = document.querySelector('main') ?? document;
 	// Find all top-level saved post containers first
-	const topLevelContainers = Array.from(scope.querySelectorAll('div[role="link"][tabindex]')).filter(
-		(container) => {
-			// Only count containers that are visible and don't have another container as a parent
-			if (!isVisible(container)) return false;
-			// Check if this container is nested inside another container (exclude nested posts)
-			const parentContainer = container.parentElement?.closest('div[role="link"][tabindex]');
-			return !parentContainer;
-		},
-	);
+	const topLevelContainers = /** @type {HTMLElement[]} */ (
+		Array.from(scope.querySelectorAll('div[role="link"][tabindex]'))
+	).filter((container) => {
+		// Only count containers that are visible and don't have another container as a parent
+		if (!isVisible(container)) return false;
+		// Check if this container is nested inside another container (exclude nested posts)
+		const parentContainer = container.parentElement?.closest('div[role="link"][tabindex]');
+		return !parentContainer;
+	});
 
 	const uniqueHrefs = new Set();
 
 	for (const container of topLevelContainers) {
 		// Find the post link within this container
-		const anchor = container.querySelector(PROFILE_POST_SELECTOR);
+		const anchor = /** @type {HTMLAnchorElement | null} */ (container.querySelector(PROFILE_POST_SELECTOR));
 		if (!anchor) continue;
 
 		const href = anchor.getAttribute('href') ?? '';
@@ -224,41 +223,6 @@ function scanAndBind() {
 function scheduleScan() {
 	if (state.scanTimer !== null) return;
 	state.scanTimer = setTimeout(scanAndBind, SCAN_DEBOUNCE_MS);
-}
-
-/**
- * Patches the browser history API to detect client-side route changes.
- * @why Bluesky is a single-page app that uses pushState/replaceState for navigation. These don't trigger page reloads, so we need to intercept them to detect when the user navigates to/from the saved page. This ensures the icon updates correctly when navigating between routes.
- */
-function patchHistoryOnce() {
-	// if (window[HISTORY_PATCH_FLAG]) return;
-	// window[HISTORY_PATCH_FLAG] = true;
-	// const dispatch = () => window.dispatchEvent(new Event('locationchange'));
-	// const originalPush = history.pushState;
-	// const originalReplace = history.replaceState;
-
-	// history.pushState = function pushStatePatched() {
-	// 	const result = originalPush.apply(this, arguments);
-	// 	state.lastReportedCount = -1;
-	// 	dispatch();
-	// 	return result;
-	// };
-
-	// history.replaceState = function replaceStatePatched() {
-	// 	const result = originalReplace.apply(this, arguments);
-	// 	state.lastReportedCount = -1;
-	// 	dispatch();
-	// 	return result;
-	// };
-
-	// window.addEventListener('popstate', () => {
-	// 	state.lastReportedCount = -1;
-	// 	scheduleScan();
-	// });
-	// window.addEventListener('locationchange', () => {
-	// 	state.lastReportedCount = -1;
-	// 	scheduleScan();
-	// });
 }
 
 /**
@@ -297,11 +261,10 @@ function initObservers() {
 }
 
 /**
- * Initializes the extension by setting up history patching, observers, and running the initial scan.
- * @why This is the entry point that sets up all the necessary infrastructure (route detection, DOM watching) and performs the first scan to find saved posts.
+ * Initializes the extension by setting up observers and running the initial scan.
+ * @why This is the entry point that sets up all the necessary infrastructure (DOM watching, event listeners) and performs the first scan to find saved posts.
  */
 function bootstrap() {
-	patchHistoryOnce();
 	initObservers();
 	if (document.readyState === 'loading') {
 		document.addEventListener(
