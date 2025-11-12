@@ -29,7 +29,7 @@ jobs:
         run: npm run zip
 
       - name: Create release
-        uses: ncipollo/create-release@v1
+        uses: ncipollo/release-action@v1
         with:
           artifacts: '*.dist.zip'
           token: ${{ secrets.GITHUB_TOKEN }}
