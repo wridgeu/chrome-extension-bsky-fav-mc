@@ -3,6 +3,7 @@
 		"module": "ESNext",
 		"target": "ES2022",
 		"checkJs": true,
+		"moduleResolution": "node",
 		"types": ["chrome"]
 	},
 	"include": ["**/*.js"],

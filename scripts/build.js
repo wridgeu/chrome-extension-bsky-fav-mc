@@ -37,24 +37,28 @@ for (const item of itemsToProcess) {
 		console.log(`Copied ${item}/`);
 	} else if (item.endsWith('.js')) {
 		// Minify JavaScript files
-		const code = fs.readFileSync(src, 'utf8');
-		const result = await minify(code, {
-			compress: {
-				drop_console: false, // Keep console statements for debugging
-				passes: 2,
-			},
-			format: {
-				comments: false, // Remove comments
-			},
-			module: true, // Preserve ES module syntax
-		});
-		
-		if (result.error) {
-			throw new Error(`Failed to minify ${item}: ${result.error.message}`);
+		try {
+			const code = fs.readFileSync(src, 'utf8');
+			const result = await minify(code, {
+				compress: {
+					drop_console: false, // Keep console statements for debugging
+					passes: 2,
+				},
+				format: {
+					comments: false, // Remove comments
+				},
+				module: true, // Preserve ES module syntax
+			});
+			
+			if (!result.code) {
+				throw new Error(`Minification returned empty code for ${item}`);
+			}
+			
+			fs.writeFileSync(dest, result.code, 'utf8');
+			console.log(`Minified ${item}`);
+		} catch (error) {
+			throw new Error(`Failed to minify ${item}: ${error instanceof Error ? error.message : String(error)}`);
 		}
-		
-		fs.writeFileSync(dest, result.code, 'utf8');
-		console.log(`Minified ${item}`);
 	} else {
 		// Copy other files as-is
 		fs.copyFileSync(src, dest);
