@@ -8,8 +8,8 @@
     "cleanup": "rimraf --glob dist *.dist.zip",
     "zip": "npm run build && npm-build-zip --source=./dist --name=dist"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["chrome extension", "bluesky", "convenience"],
+  "author": "Marco Beier",
   "license": "Unlicense",
   "type": "module",
   "devDependencies": {
