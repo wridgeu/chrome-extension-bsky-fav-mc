@@ -1,4 +1,4 @@
-// MV3 service worker: renders the Bluesky glyph, swaps icon state, and syncs the action badge
+// MV3 service worker: renders SVG path to ImageData and syncs the action badge
 
 const ICON_SIZES = [16, 32];
 const FILL_COLORS = {
@@ -6,11 +6,11 @@ const FILL_COLORS = {
 	disabled: '#A0A0A0',
 };
 const MAX_SHOWN_COUNT = 99;
+const SVG_ICON_PATH = 'icons/icon-blue.svg';
+const SVG_VIEWBOX_SIZE = 640;
 
 let svgPathData = null;
-let svgViewBoxSize = 640;
 
-const renderedIconCache = new Map(); // state => {16: ImageData, 32: ImageData}
 const tabCounts = new Map();
 
 const limitCountLabel = (count = 0) => {
@@ -21,34 +21,21 @@ const limitCountLabel = (count = 0) => {
 
 async function ensureSvgPathLoaded() {
 	if (svgPathData) return;
-	const svgUrl = chrome.runtime.getURL('icons/icon-blue.svg');
+	const svgUrl = chrome.runtime.getURL(SVG_ICON_PATH);
 	const res = await fetch(svgUrl);
 	if (!res.ok) {
 		throw new Error(`Failed to fetch icon SVG: ${res.status} ${res.statusText}`);
 	}
 	const svgText = await res.text();
-	const viewBoxMatch = svgText.match(/viewBox=["']\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*["']/i);
-	if (viewBoxMatch) {
-		const width = Number(viewBoxMatch[1]);
-		const height = Number(viewBoxMatch[2]);
-		const maxSize = Math.max(width || 0, height || 0);
-		if (maxSize > 0) {
-			svgViewBoxSize = maxSize;
-		}
-	}
 	const pathMatch = svgText.match(/<path[^>]*\sd=["']([^"']+)["']/i);
 	if (!pathMatch || !pathMatch[1]) {
-		throw new Error('Failed to parse SVG path data from icon-blue.svg');
+		throw new Error(`Failed to parse SVG path data from ${SVG_ICON_PATH}`);
 	}
 	svgPathData = pathMatch[1];
 }
 
 async function getIconImages(state) {
 	await ensureSvgPathLoaded();
-	if (renderedIconCache.has(state)) {
-		return renderedIconCache.get(state);
-	}
-
 	const images = {};
 	for (const size of ICON_SIZES) {
 		const canvas = new OffscreenCanvas(size, size);
@@ -59,7 +46,7 @@ async function getIconImages(state) {
 		ctx.clearRect(0, 0, size, size);
 
 		ctx.save();
-		const scale = size / svgViewBoxSize;
+		const scale = size / SVG_VIEWBOX_SIZE;
 		ctx.scale(scale, scale);
 		const path = new Path2D(svgPathData);
 		ctx.fillStyle = FILL_COLORS[state];
@@ -68,8 +55,6 @@ async function getIconImages(state) {
 
 		images[size] = ctx.getImageData(0, 0, size, size);
 	}
-
-	renderedIconCache.set(state, images);
 	return images;
 }
 
