@@ -19,11 +19,23 @@ What would I do differently next time? Well under the cirumstances I just wanted
 - **Robust DOM monitoring**  
   Works with Bluesky’s client-side routing, infinite scrolling, and shadow DOM. Counts refresh automatically when bouncing between Bluesky tabs or other sites in the same tab.
 
-## 📥 Installation
-1. Visit `chrome://extensions`.
-2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and choose the repository folder (`chrome-extension-bsky-fav-mc`).
-4. Navigate to `https://bsky.app/saved` to see the extension in action.
+## 🧩 Installing the Extension via GitHub (Load Unpacked)
+1. [Download the latest release ZIP](https://github.com/wridgeu/chrome-extension-bsky-fav-mc/releases) **or** clone this repo with `git clone (this repository).
+2. If you cloned from GitHub, or if you want to build the extension yourself, run:
+
+   ```sh
+   npm ci
+   npm run build
+   ```
+
+   This will produce a `.dist` folder in the project folder. Move this to a directory of your choice.
+
+3. Open Chrome and go to `chrome://extensions/`
+4. Enable **Developer mode** (toggle in the top right).
+5. Click **Load unpacked** and select the folder containing `manifest.json` (either the one you downloaded/extracted or built as described above).
+6. The extension should now appear in your extensions list; navigate to `https://bsky.app/saved` to see it in action!
+
+_The command `npm run zip` would be useful for releasing this extension to the chrome web store (currently not planned)_
 
 ## ⚙️ How It Works
 
@@ -62,11 +74,6 @@ What would I do differently next time? Well under the cirumstances I just wanted
 - **Post counting:** Only counts top-level saved posts by finding containers that aren't nested inside other containers. This prevents counting quoted/reposted content within saved posts as separate posts.
 - **Resilience:** Content script gracefully handles Bluesky's React hydration, shadow roots, and BFCache restores. Type assertions at variable origin ensure correct types throughout.
 - **Middle-click behavior:** Uses capture-phase listeners on the clickable container to ensure middle-click navigation works across the entire post card, even if Bluesky changes internal handlers.
-
-### 📦 Packaging for the Chrome Web Store
-1. Ensure the repo contains only runtime assets (manifest, scripts, `icons/`, `README.md`).
-2. Run `zip -r bsky-saved-middle-click.zip manifest.json background.js content.js icons README.md`.
-3. In the Chrome Web Store Developer Console, upload the ZIP, provide listing assets (screenshots, description, privacy statement), and submit for review.
 
 ## ✅ Testing & Verification
 Manual testing checklist:
