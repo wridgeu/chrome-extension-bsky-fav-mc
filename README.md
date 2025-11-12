@@ -5,9 +5,9 @@ This Chrome extension enhances the `https://bsky.app/saved` page by detecting sa
 
 ### Learnings (🧑)
 The extension use-case seemed trivial enough to do it with Cursor and as pair programming in Agent mode. I didn't want to spend too much time setting up an extension myself so this was perfect. I even learned a few things. For example:
-- OffscreenCanvas
+- `OffscreenCanvas`
   - That the `setIcon` API doesn't accept SVGs
-- QuerySelector usage like a regex (fun!) `a[href^="/profile/"][href*="/post/"]`
+- `querySelector`-selector usage like a regex (fun!) `a[href^="/profile/"][href*="/post/"]`
 
 What would I do differently next time? Well under the cirumstances I just wanted to get started and simply started prompting. I'd love to check out SDD and more testing of chrome extensions not only in general but especially in combination with AI "pair programming".
 
