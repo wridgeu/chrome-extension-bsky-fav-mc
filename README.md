@@ -1,4 +1,4 @@
-# 🦋 Bluesky "Saved Posts" Middle-Click Opener
+# 🦋 BlueSky "Saved Posts" Middle-Click Opener
 
 ## 📋 Overview
 This Chrome extension enhances the `https://bsky.app/saved` page by detecting saved posts, enabling middle-click navigation, and surfacing a live badge count in the browser toolbar. It is built on Manifest V3 with a background service worker and a single content script.
@@ -17,7 +17,7 @@ What would I do differently next time? Well, under the circumstances, I just wan
 - **Middle-click navigation**  
   Saved post cards can be opened in a new tab with a middle mouse button press (or trackpad equivalent) without triggering the browser's auto-scroll behavior.
 - **Robust DOM monitoring**  
-  Works with Bluesky’s client-side routing, infinite scrolling, and shadow DOM. Counts refresh automatically when bouncing between Bluesky tabs or other sites in the same tab.
+  Works with BlueSky’s client-side routing, infinite scrolling, and shadow DOM. Counts refresh automatically when bouncing between BlueSky tabs or other sites in the same tab.
 
 ## 🧩 Installing the Extension via GitHub (Load Unpacked)
 1. [Download the latest release ZIP](https://github.com/wridgeu/chrome-extension-bsky-fav-mc/releases) **or** clone this repo with `git clone https://github.com/wridgeu/chrome-extension-bsky-fav-mc.git`.
@@ -52,7 +52,7 @@ _Note: The command `npm run zip` can be used for packaging the extension for Chr
 - Listens to `popstate`, `pageshow`, `focus`, and `visibilitychange` events to detect navigation and tab switches.
 
 ### ⚡ Background Service Worker (`background.js`)
-- Lazy-loads and parses `icons/icon-blue.svg` at runtime to extract the Bluesky glyph path data.
+- Lazy-loads and parses `icons/icon-blue.svg` at runtime to extract the BlueSky glyph path data.
 - Renders two icon states (enabled/disabled) on demand via `OffscreenCanvas` with different fill colors (blue `#2196F3` for enabled, gray `#A0A0A0` for disabled).
 - Converts rendered icons to `ImageData` and sets them with `chrome.action.setIcon` (Chrome doesn't support SVG files directly for action icons).
 - Maintains per-tab counts in a `Map`, resets on navigation events, and updates the badge background/text alongside the icon.
@@ -68,12 +68,12 @@ _Note: The command `npm run zip` can be used for packaging the extension for Chr
 
 ## 🛠️ Development Notes
 - **Tooling:** Plain JavaScript (ES2022) with a build step for minification using Terser. Icons live under `icons/`.
-- **Static icons:** `icons/default/icon-blue-16.png`, `icons/default/icon-blue-32.png`, `icons/default/icon-blue-48.png`, and `icons/default/icon-blue-128.png` are bundled for Chrome Web Store submission and as the default action icon. The runtime renders the dynamic Bluesky glyph icon with count badge overlay.
+- **Static icons:** `icons/default/icon-blue-16.png`, `icons/default/icon-blue-32.png`, `icons/default/icon-blue-48.png`, and `icons/default/icon-blue-128.png` are bundled for Chrome Web Store submission and as the default action icon. The runtime renders the dynamic BlueSky glyph icon with count badge overlay.
 - **Icon rendering:** Icons are rendered on-demand using `OffscreenCanvas` (required in service workers since regular canvas isn't available). The SVG path is loaded from `icons/icon-blue.svg` at runtime and rendered with different colors based on state.
-- **Route detection:** Relies on `MutationObserver` and event listeners (`popstate`, `pageshow`, `focus`, `visibilitychange`) to detect route changes. State is reset when returning to the saved page to ensure accurate counts. No history API patching needed - Bluesky's DOM updates trigger rescans automatically.
+- **Route detection:** Relies on `MutationObserver` and event listeners (`popstate`, `pageshow`, `focus`, `visibilitychange`) to detect route changes. State is reset when returning to the saved page to ensure accurate counts. No history API patching needed - BlueSky's DOM updates trigger rescans automatically.
 - **Post counting:** Only counts top-level saved posts by finding containers that aren't nested inside other containers. This prevents counting quoted/reposted content within saved posts as separate posts.
-- **Resilience:** Content script gracefully handles Bluesky's React hydration, shadow roots. JSDoc type assertions at variable origin ensure correct types throughout.
-- **Middle-click behavior:** Uses capture-phase listeners on the clickable container to ensure middle-click navigation works across the entire post card, even if Bluesky changes internal handlers.
+- **Resilience:** Content script gracefully handles BlueSky's React hydration, shadow roots. JSDoc type assertions at variable origin ensure correct types throughout.
+- **Middle-click behavior:** Uses capture-phase listeners on the clickable container to ensure middle-click navigation works across the entire post card, even if BlueSky changes internal handlers.
 - **Build process:** The `npm run build` command minifies JavaScript files (`background.js`, `content.js`) using Terser and copies all necessary files to the `dist` directory. The minified files are smaller and load faster. Always use the `dist` folder when loading the extension in Chrome.
 
 ## ✅ Testing & Verification
@@ -87,12 +87,12 @@ Manual testing checklist:
 - Scroll to load more saved posts; count and badge update accordingly.
 
 ## ⚠️ Known Limitations / 💡 Future Ideas
-- The extension is scoped to the `/saved` route. If Bluesky redesigns that page, selectors may require updates.
+- The extension is scoped to the `/saved` route. If BlueSky redesigns that page, selectors may require updates.
 - Badge counts cap at `99+` for readability; scrolling beyond that still tracks but displays the capped value.
 - Currently no automated tests; adding puppeteer-based integration tests could help catch regressions.
 
 ## 🙏 Credits
-- Bluesky glyph SVG sourced from Font Awesome Free v7.1.0.
+- BlueSky glyph SVG sourced from Font Awesome Free v7.1.0.
 
 ---
 
