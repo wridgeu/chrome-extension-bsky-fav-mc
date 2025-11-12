@@ -4,23 +4,23 @@
 This Chrome extension enhances the `https://bsky.app/saved` page by detecting saved posts, enabling middle-click navigation, and surfacing a live badge count in the browser toolbar. It is built on Manifest V3 with a background service worker and a single content script.
 
 ### 🧑 Learnings
-The extension use-case seemed trivial enough to do it with Cursor and as pair programming in Agent mode. I didn't want to spend too much time setting up an extension myself so this was perfect. I even learned a few things. For example:
+The extension use case seemed trivial enough to implement with Cursor using pair programming in Agent mode. I didn't want to spend too much time setting up an extension myself, so this was perfect. I even learned a few things. For example:
 - `OffscreenCanvas`
   - That the `setIcon` API doesn't accept SVGs
-- `querySelector`-selector usage like a regex (fun!) `a[href^="/profile/"][href*="/post/"]`
+- `querySelector` selector usage like a regex (fun!) `a[href^="/profile/"][href*="/post/"]`
 
-What would I do differently next time? Well under the cirumstances I just wanted to get started and simply started prompting. I'd love to check out SDD and more testing of chrome extensions not only in general but especially in combination with AI "pair programming".
+What would I do differently next time? Well, under the circumstances, I just wanted to get started and simply started prompting. I'd love to check out SDD and more testing of Chrome extensions, not only in general but especially in combination with AI "pair programming".
 
 ## ✨ Key Features
 - **Per-tab saved post count**  
   The toolbar icon lights up (blue) and shows the number of visible saved posts on the current tab. When no posts are detected, the icon stays gray with an empty badge.
 - **Middle-click navigation**  
-  Saved post cards and their timestamp anchors can be opened in a new tab with a middle mouse button press (or trackpad equivalent) without triggering the browser’s auto-scroll behavior.
+  Saved post cards can be opened in a new tab with a middle mouse button press (or trackpad equivalent) without triggering the browser's auto-scroll behavior.
 - **Robust DOM monitoring**  
   Works with Bluesky’s client-side routing, infinite scrolling, and shadow DOM. Counts refresh automatically when bouncing between Bluesky tabs or other sites in the same tab.
 
 ## 🧩 Installing the Extension via GitHub (Load Unpacked)
-1. [Download the latest release ZIP](https://github.com/wridgeu/chrome-extension-bsky-fav-mc/releases) **or** clone this repo with `git clone (this repository).
+1. [Download the latest release ZIP](https://github.com/wridgeu/chrome-extension-bsky-fav-mc/releases) **or** clone this repo with `git clone https://github.com/wridgeu/chrome-extension-bsky-fav-mc.git`.
 2. If you cloned from GitHub, or if you want to build the extension yourself, run:
 
    ```sh
@@ -28,14 +28,14 @@ What would I do differently next time? Well under the cirumstances I just wanted
    npm run build
    ```
 
-   This will produce a `.dist` folder in the project folder. Move this to a directory of your choice.
+   This will produce a `dist` folder in the project folder. Move this to a directory of your choice.
 
 3. Open Chrome and go to `chrome://extensions/`
 4. Enable **Developer mode** (toggle in the top right).
 5. Click **Load unpacked** and select the folder containing `manifest.json` (either the one you downloaded/extracted or built as described above).
 6. The extension should now appear in your extensions list; navigate to `https://bsky.app/saved` to see it in action!
 
-_The command `npm run zip` would be useful for releasing this extension to the chrome web store (currently not planned)_
+_Note: The command `npm run zip` can be used for packaging the extension for Chrome Web Store submission (currently not planned)._
 
 ## ⚙️ How It Works
 
@@ -68,11 +68,11 @@ _The command `npm run zip` would be useful for releasing this extension to the c
 
 ## 🛠️ Development Notes
 - **Tooling:** Plain JavaScript (ES2022), no build step required. Icons live under `icons/`.
-- **Static icons:** `icons/default/icon-blue-16.png`, `icons/default/icon-blue-32.png`, `icons/default/icon-blue-48.png`, and `icons/default/icon-blue-128.png` are bundled for Chrome Web Store submission and as the default action icon. The runtime renders the dynamic butterfly icon with count badge overlay.
+- **Static icons:** `icons/default/icon-blue-16.png`, `icons/default/icon-blue-32.png`, `icons/default/icon-blue-48.png`, and `icons/default/icon-blue-128.png` are bundled for Chrome Web Store submission and as the default action icon. The runtime renders the dynamic Bluesky glyph icon with count badge overlay.
 - **Icon rendering:** Icons are rendered on-demand using `OffscreenCanvas` (required in service workers since regular canvas isn't available). The SVG path is loaded from `icons/icon-blue.svg` at runtime and rendered with different colors based on state.
 - **Route detection:** Relies on `MutationObserver` and event listeners (`popstate`, `pageshow`, `focus`, `visibilitychange`) to detect route changes. No history API patching needed - Bluesky's DOM updates trigger rescans automatically.
 - **Post counting:** Only counts top-level saved posts by finding containers that aren't nested inside other containers. This prevents counting quoted/reposted content within saved posts as separate posts.
-- **Resilience:** Content script gracefully handles Bluesky's React hydration, shadow roots, and BFCache restores. Type assertions at variable origin ensure correct types throughout.
+- **Resilience:** Content script gracefully handles Bluesky's React hydration, shadow roots. JSDoc type assertions at variable origin ensure correct types throughout.
 - **Middle-click behavior:** Uses capture-phase listeners on the clickable container to ensure middle-click navigation works across the entire post card, even if Bluesky changes internal handlers.
 
 ## ✅ Testing & Verification
