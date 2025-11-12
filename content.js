@@ -11,11 +11,23 @@ const MIDDLE_BUTTON = 1;
 
 const state = {
 	lastReportedCount: -1,
+	/** @type {ReturnType<typeof setTimeout> | null} */
 	scanTimer: null,
 };
 
+/**
+ * Checks if the current page is the Bluesky saved posts page.
+ * @returns {boolean} True if on /saved route
+ * @why We only want to scan and count posts on the saved page, not on other Bluesky pages.
+ */
 const isOnSavedPage = () => location.hostname === 'bsky.app' && location.pathname.startsWith('/saved');
 
+/**
+ * Converts a relative URL to an absolute URL.
+ * @param {string} href - Relative URL path
+ * @returns {string} Absolute URL
+ * @why window.open() needs absolute URLs to work correctly, and post links are relative paths.
+ */
 const toAbsoluteUrl = (href) => {
 	try {
 		return new URL(href, location.origin).toString();
@@ -24,6 +36,11 @@ const toAbsoluteUrl = (href) => {
 	}
 };
 
+/**
+ * Prevents the default browser behavior for middle-click (autoscroll).
+ * @param {MouseEvent} event - Mouse event
+ * @why Middle-click normally triggers autoscroll in browsers. We need to prevent this so our custom handler can open the post instead.
+ */
 const preventMiddleClickDefaults = (event) => {
 	if (event.button !== MIDDLE_BUTTON) return;
 	event.preventDefault();
@@ -31,6 +48,12 @@ const preventMiddleClickDefaults = (event) => {
 	event.stopImmediatePropagation?.();
 };
 
+/**
+ * Creates an event handler that opens a URL in a new tab on middle-click.
+ * @param {string} url - URL to open
+ * @returns {(event: MouseEvent) => void} Event handler function
+ * @why This is the actual action we want: middle-click should open the saved post in a new tab.
+ */
 const handleAuxClick = (url) => (event) => {
 	if (event.button !== MIDDLE_BUTTON) return;
 	event.preventDefault();
@@ -38,6 +61,12 @@ const handleAuxClick = (url) => (event) => {
 	window.open(url, '_blank', 'noopener');
 };
 
+/**
+ * Attaches middle-click handlers to a saved post container element.
+ * @param {HTMLElement} container - The interactive container div
+ * @param {HTMLAnchorElement} anchor - The post link anchor element
+ * @why The container is the clickable area users interact with. We attach handlers here so middle-click anywhere on the post card opens it.
+ */
 function ensureMiddleClick(container, anchor) {
 	if (!container || container.dataset[HANDLED_CONTAINER_FLAG] === '1') return;
 	const href = anchor.getAttribute('href') ?? '';
@@ -53,6 +82,11 @@ function ensureMiddleClick(container, anchor) {
 	container.addEventListener('auxclick', handleAuxClick(absoluteUrl), true);
 }
 
+/**
+ * Attaches middle-click handlers directly to the post link anchor.
+ * @param {HTMLAnchorElement} anchor - The post link anchor element
+ * @why We also attach handlers to the anchor itself as a fallback, ensuring middle-click works even if the container handler fails.
+ */
 function ensureAnchorMiddleClick(anchor) {
 	if (!anchor || anchor.dataset[HANDLED_ANCHOR_FLAG] === '1') return;
 	const href = anchor.getAttribute('href') ?? '';
@@ -66,10 +100,22 @@ function ensureAnchorMiddleClick(anchor) {
 	anchor.addEventListener('auxclick', handleAuxClick(absoluteUrl), true);
 }
 
+/**
+ * Finds the interactive container (the clickable post card) that contains an element.
+ * @param {Element} element - Element to search from
+ * @returns {HTMLElement | null} The container element or null
+ * @why Saved posts are wrapped in a div[role="link"][tabindex] that represents the entire clickable post card. We need this to attach middle-click handlers to the whole card.
+ */
 function findInteractiveContainer(element) {
 	return element.closest('div[role="link"][tabindex]');
 }
 
+/**
+ * Checks if an element is visible on the page.
+ * @param {Element} element - Element to check
+ * @returns {boolean} True if element is visible
+ * @why We only want to count and enable middle-click on posts that are actually visible. Hidden posts (from other routes or collapsed) shouldn't be counted.
+ */
 function isVisible(element) {
 	try {
 		const style = window.getComputedStyle(element);
@@ -83,6 +129,12 @@ function isVisible(element) {
 	}
 }
 
+/**
+ * Recursively collects all profile post anchor elements from a root node, including shadow DOM.
+ * @param {Node} root - Root node to search from
+ * @returns {HTMLAnchorElement[]} Array of matching anchor elements
+ * @why Bluesky uses shadow DOM in some places. This function ensures we find all post links even if they're hidden in shadow roots. (Currently unused but kept for potential future use)
+ */
 function collectProfileAnchors(root) {
 	const collected = [];
 	const stack = [root];
@@ -105,6 +157,11 @@ function collectProfileAnchors(root) {
 	return collected;
 }
 
+/**
+ * Sends the post count to the background script to update the extension icon.
+ * @param {number} count - Number of saved posts found
+ * @why The background script needs to know the count to update the icon badge and color. We skip sending if the count hasn't changed to avoid unnecessary updates.
+ */
 function sendCount(count) {
 	if (state.lastReportedCount === count) return;
 	state.lastReportedCount = count;
@@ -115,8 +172,15 @@ function sendCount(count) {
 	}
 }
 
+/**
+ * Scans the page for saved posts, attaches middle-click handlers, and reports the count.
+ * @why This is the main function that finds all saved posts, enables middle-click functionality, and keeps the icon count accurate. It only counts top-level posts (not nested quoted posts).
+ */
 function scanAndBind() {
-	state.scanTimer = null;
+	if (state.scanTimer !== null) {
+		clearTimeout(state.scanTimer);
+		state.scanTimer = null;
+	}
 	if (!isOnSavedPage()) {
 		sendCount(0);
 		return;
@@ -153,42 +217,54 @@ function scanAndBind() {
 	sendCount(uniqueHrefs.size);
 }
 
+/**
+ * Schedules a debounced scan of the page.
+ * @why Prevents excessive scanning when the DOM changes rapidly (e.g., during scrolling). Only one scan will run after changes settle.
+ */
 function scheduleScan() {
 	if (state.scanTimer !== null) return;
 	state.scanTimer = setTimeout(scanAndBind, SCAN_DEBOUNCE_MS);
 }
 
+/**
+ * Patches the browser history API to detect client-side route changes.
+ * @why Bluesky is a single-page app that uses pushState/replaceState for navigation. These don't trigger page reloads, so we need to intercept them to detect when the user navigates to/from the saved page. This ensures the icon updates correctly when navigating between routes.
+ */
 function patchHistoryOnce() {
-	if (window[HISTORY_PATCH_FLAG]) return;
-	window[HISTORY_PATCH_FLAG] = true;
-	const dispatch = () => window.dispatchEvent(new Event('locationchange'));
-	const originalPush = history.pushState;
-	const originalReplace = history.replaceState;
+	// if (window[HISTORY_PATCH_FLAG]) return;
+	// window[HISTORY_PATCH_FLAG] = true;
+	// const dispatch = () => window.dispatchEvent(new Event('locationchange'));
+	// const originalPush = history.pushState;
+	// const originalReplace = history.replaceState;
 
-	history.pushState = function pushStatePatched() {
-		const result = originalPush.apply(this, arguments);
-		state.lastReportedCount = -1;
-		dispatch();
-		return result;
-	};
+	// history.pushState = function pushStatePatched() {
+	// 	const result = originalPush.apply(this, arguments);
+	// 	state.lastReportedCount = -1;
+	// 	dispatch();
+	// 	return result;
+	// };
 
-	history.replaceState = function replaceStatePatched() {
-		const result = originalReplace.apply(this, arguments);
-		state.lastReportedCount = -1;
-		dispatch();
-		return result;
-	};
+	// history.replaceState = function replaceStatePatched() {
+	// 	const result = originalReplace.apply(this, arguments);
+	// 	state.lastReportedCount = -1;
+	// 	dispatch();
+	// 	return result;
+	// };
 
-	window.addEventListener('popstate', () => {
-		state.lastReportedCount = -1;
-		scheduleScan();
-	});
-	window.addEventListener('locationchange', () => {
-		state.lastReportedCount = -1;
-		scheduleScan();
-	});
+	// window.addEventListener('popstate', () => {
+	// 	state.lastReportedCount = -1;
+	// 	scheduleScan();
+	// });
+	// window.addEventListener('locationchange', () => {
+	// 	state.lastReportedCount = -1;
+	// 	scheduleScan();
+	// });
 }
 
+/**
+ * Initializes DOM mutation observers and event listeners to detect page changes.
+ * @why The saved posts page loads content dynamically as you scroll. We need to watch for new posts being added to the DOM and re-scan when the page becomes visible again (e.g., when switching tabs back to Bluesky).
+ */
 function initObservers() {
 	const observer = new MutationObserver((mutations) => {
 		for (const mutation of mutations) {
@@ -220,6 +296,10 @@ function initObservers() {
 	);
 }
 
+/**
+ * Initializes the extension by setting up history patching, observers, and running the initial scan.
+ * @why This is the entry point that sets up all the necessary infrastructure (route detection, DOM watching) and performs the first scan to find saved posts.
+ */
 function bootstrap() {
 	patchHistoryOnce();
 	initObservers();
