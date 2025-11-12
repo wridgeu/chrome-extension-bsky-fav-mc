@@ -82,34 +82,6 @@ function ensureMiddleClick(container, anchor) {
 }
 
 /**
- * Attaches middle-click handlers directly to the post link anchor.
- * @param {HTMLAnchorElement} anchor - The post link anchor element
- * @why We also attach handlers to the anchor itself as a fallback, ensuring middle-click works even if the container handler fails.
- */
-function ensureAnchorMiddleClick(anchor) {
-	if (!anchor || anchor.dataset[HANDLED_ANCHOR_FLAG] === '1') return;
-	const href = anchor.getAttribute('href') ?? '';
-	const absoluteUrl = toAbsoluteUrl(href);
-
-	anchor.dataset[HANDLED_ANCHOR_FLAG] = '1';
-	anchor.addEventListener('pointerdown', preventMiddleClickDefaults, true);
-	anchor.addEventListener('pointerup', preventMiddleClickDefaults, true);
-	anchor.addEventListener('mousedown', preventMiddleClickDefaults, true);
-	anchor.addEventListener('mouseup', preventMiddleClickDefaults, true);
-	anchor.addEventListener('auxclick', handleAuxClick(absoluteUrl), true);
-}
-
-/**
- * Finds the interactive container (the clickable post card) that contains an element.
- * @param {Element} element - Element to search from
- * @returns {HTMLElement | null} The container element or null
- * @why Saved posts are wrapped in a div[role="link"][tabindex] that represents the entire clickable post card. We need this to attach middle-click handlers to the whole card.
- */
-function findInteractiveContainer(element) {
-	return element.closest('div[role="link"][tabindex]');
-}
-
-/**
  * Checks if an element is visible on the page.
  * @param {Element} element - Element to check
  * @returns {boolean} True if element is visible
@@ -129,34 +101,6 @@ function isVisible(element) {
 }
 
 /**
- * Recursively collects all profile post anchor elements from a root node, including shadow DOM.
- * @param {Node} root - Root node to search from
- * @returns {HTMLAnchorElement[]} Array of matching anchor elements
- * @why Bluesky uses shadow DOM in some places. This function ensures we find all post links even if they're hidden in shadow roots. (Currently unused but kept for potential future use)
- */
-function collectProfileAnchors(root) {
-	const collected = [];
-	const stack = [root];
-	while (stack.length) {
-		const node = stack.pop();
-		if (!node) continue;
-		if (node.nodeType === Node.ELEMENT_NODE) {
-			const element = /** @type {Element} */ (node);
-			if (element.matches?.(PROFILE_POST_SELECTOR)) {
-				collected.push(element);
-			}
-			if (element.shadowRoot) {
-				stack.push(element.shadowRoot);
-			}
-			stack.push(...element.children);
-		} else if (node.childNodes?.length) {
-			stack.push(...node.childNodes);
-		}
-	}
-	return collected;
-}
-
-/**
  * Sends the post count to the background script to update the extension icon.
  * @param {number} count - Number of saved posts found
  * @why The background script needs to know the count to update the icon badge and color. We skip sending if the count hasn't changed to avoid unnecessary updates.
@@ -172,10 +116,10 @@ function sendCount(count) {
 }
 
 /**
- * Scans the page for saved posts, attaches middle-click handlers, and reports the count.
- * @why This is the main function that finds all saved posts, enables middle-click functionality, and keeps the icon count accurate. It only counts top-level posts (not nested quoted posts).
+ * Scans the DOM for saved posts, attaches middle-click handlers to them, and reports the count.
+ * @why This is the main function that finds all saved posts, enables middle-click functionality, and keeps the icon count accurate. It only counts top-level posts (not nested quoted posts). The name reflects that it both scans the DOM structure and attaches (binds) event handlers to the found elements.
  */
-function scanAndBind() {
+function scanDOMAndAttachHandlers() {
 	if (state.scanTimer !== null) {
 		clearTimeout(state.scanTimer);
 		state.scanTimer = null;
@@ -209,7 +153,6 @@ function scanAndBind() {
 		if (!isVisible(anchor)) continue;
 
 		uniqueHrefs.add(href);
-		ensureAnchorMiddleClick(anchor);
 		ensureMiddleClick(container, anchor);
 	}
 
@@ -222,7 +165,7 @@ function scanAndBind() {
  */
 function scheduleScan() {
 	if (state.scanTimer !== null) return;
-	state.scanTimer = setTimeout(scanAndBind, SCAN_DEBOUNCE_MS);
+	state.scanTimer = setTimeout(scanDOMAndAttachHandlers, SCAN_DEBOUNCE_MS);
 }
 
 /**
