@@ -1,26 +1,34 @@
 {
-  "manifest_version": 3,
-  "name": "Bluesky Saved: Middle-Click Opener",
-  "version": "1.0.0",
-  "description": "On https://bsky.app/saved, enables middle-click on saved post containers to open the post in a new tab and lights the icon when active.",
-  "action": {
-    "default_title": "Bluesky Saved Opener"
-  },
-  "permissions": [],
-  "host_permissions": [
-    "https://bsky.app/*"
-  ],
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "content_scripts": [
-    {
-      "matches": ["https://bsky.app/*"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ]
+	"manifest_version": 3,
+	"name": "Bluesky Saved: Middle-Click Opener",
+	"version": "1.0.0",
+	"description": "On https://bsky.app/saved, enables middle-click on saved post containers to open the post in a new tab and lights the icon when active.",
+	"icons": {
+		"16": "icons/default/icon-blue-16.png",
+		"32": "icons/default/icon-blue-32.png",
+		"48": "icons/default/icon-blue-48.png",
+		"128": "icons/default/icon-blue-128.png"
+	},
+	"action": {
+		"default_title": "Bluesky Saved Opener",
+		"default_icon": {
+			"16": "icons/default/icon-blue-16.png",
+			"32": "icons/default/icon-blue-32.png",
+			"48": "icons/default/icon-blue-48.png",
+			"128": "icons/default/icon-blue-128.png"
+		}
+	},
+	"permissions": [],
+	"host_permissions": ["https://bsky.app/*"],
+	"background": {
+		"service_worker": "background.js",
+		"type": "module"
+	},
+	"content_scripts": [
+		{
+			"matches": ["https://bsky.app/*"],
+			"js": ["content.js"],
+			"run_at": "document_idle"
+		}
+	]
 }
-
-

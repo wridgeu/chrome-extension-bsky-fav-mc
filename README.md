@@ -43,9 +43,15 @@ This Chrome extension enhances the `https://bsky.app/saved` page by detecting sa
 
 ## Development Notes
 - **Tooling:** Plain JavaScript (ES2022), no build step required. Icons live under `icons/`.
+- **Static icons:** `icons/icon16.png`, `icon32.png`, `icon48.png`, and `icon128.png` are bundled for Chrome Web Store submission and as the default action icon. The runtime still renders the dynamic butterfly/count overlay.
 - **Caching:** The background worker caches rendered icon ImageData keyed by state, minimizing redraws.
 - **Resilience:** Content script gracefully handles Bluesky’s React hydration, shadow roots, and BFCache restores. History patching is idempotent to survive multiple injections.
 - **Middle-click behavior:** Uses capture-phase listeners on both the anchor and its clickable container to ensure middle-click navigation always works even if Bluesky changes internal handlers.
+
+### Packaging for the Chrome Web Store
+1. Ensure the repo contains only runtime assets (manifest, scripts, `icons/`, `README.md`).
+2. Run `zip -r bsky-saved-middle-click.zip manifest.json background.js content.js icons README.md`.
+3. In the Chrome Web Store Developer Console, upload the ZIP, provide listing assets (screenshots, description, privacy statement), and submit for review.
 
 ## Testing & Verification
 Manual testing checklist:
