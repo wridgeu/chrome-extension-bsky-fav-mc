@@ -15,16 +15,16 @@ const state = {
 
 /**
  * Checks if the current page is the Bluesky saved posts page.
+ * We only scan and count posts on the saved page, not on other Bluesky pages.
  * @returns {boolean} True if on /saved route
- * @why We only want to scan and count posts on the saved page, not on other Bluesky pages.
  */
 const isOnSavedPage = () => location.hostname === 'bsky.app' && location.pathname.startsWith('/saved');
 
 /**
  * Converts a relative URL to an absolute URL.
+ * window.open() needs absolute URLs to work correctly, and post links are relative paths.
  * @param {string} href - Relative URL path
  * @returns {string} Absolute URL
- * @why window.open() needs absolute URLs to work correctly, and post links are relative paths.
  */
 const toAbsoluteUrl = (href) => {
 	try {
@@ -36,8 +36,8 @@ const toAbsoluteUrl = (href) => {
 
 /**
  * Prevents the default browser behavior for middle-click (autoscroll).
+ * Middle-click normally triggers autoscroll in browsers. We need to prevent this so our custom handler can open the post instead.
  * @param {MouseEvent} event - Mouse event
- * @why Middle-click normally triggers autoscroll in browsers. We need to prevent this so our custom handler can open the post instead.
  */
 const preventMiddleClickDefaults = (event) => {
 	if (event.button !== MIDDLE_BUTTON) return;
@@ -48,9 +48,9 @@ const preventMiddleClickDefaults = (event) => {
 
 /**
  * Creates an event handler that opens a URL in a new tab on middle-click.
+ * This is the actual action we want: middle-click should open the saved post in a new tab.
  * @param {string} url - URL to open
  * @returns {(event: MouseEvent) => void} Event handler function
- * @why This is the actual action we want: middle-click should open the saved post in a new tab.
  */
 const handleAuxClick = (url) => (event) => {
 	if (event.button !== MIDDLE_BUTTON) return;
@@ -61,9 +61,9 @@ const handleAuxClick = (url) => (event) => {
 
 /**
  * Attaches middle-click handlers to a saved post container element.
+ * The container is the clickable area users interact with. We attach handlers here so middle-click anywhere on the post card opens it.
  * @param {HTMLElement} container - The interactive container div
  * @param {HTMLAnchorElement} anchor - The post link anchor element
- * @why The container is the clickable area users interact with. We attach handlers here so middle-click anywhere on the post card opens it.
  */
 function ensureMiddleClick(container, anchor) {
 	if (!container || container.dataset[HANDLED_CONTAINER_FLAG] === '1') return;
@@ -82,9 +82,9 @@ function ensureMiddleClick(container, anchor) {
 
 /**
  * Checks if an element is visible on the page.
+ * We only count and enable middle-click on posts that are actually visible. Hidden posts (from other routes or collapsed) shouldn't be counted.
  * @param {Element} element - Element to check
  * @returns {boolean} True if element is visible
- * @why We only want to count and enable middle-click on posts that are actually visible. Hidden posts (from other routes or collapsed) shouldn't be counted.
  */
 function isVisible(element) {
 	try {
@@ -101,8 +101,8 @@ function isVisible(element) {
 
 /**
  * Sends the post count to the background script to update the extension icon.
+ * The background script needs to know the count to update the icon badge and color. We skip sending if the count hasn't changed to avoid unnecessary updates.
  * @param {number} count - Number of saved posts found
- * @why The background script needs to know the count to update the icon badge and color. We skip sending if the count hasn't changed to avoid unnecessary updates.
  */
 function sendCount(count) {
 	if (state.lastReportedCount === count) return;
@@ -116,7 +116,7 @@ function sendCount(count) {
 
 /**
  * Scans the DOM for saved posts, attaches middle-click handlers to them, and reports the count.
- * @why This is the main function that finds all saved posts, enables middle-click functionality, and keeps the icon count accurate. It only counts top-level posts (not nested quoted posts). The name reflects that it both scans the DOM structure and attaches (binds) event handlers to the found elements.
+ * This is the main function that finds all saved posts, enables middle-click functionality, and keeps the icon count accurate. It only counts top-level posts (not nested quoted posts). The name reflects that it both scans the DOM structure and attaches (binds) event handlers to the found elements.
  */
 function scanDOMAndAttachHandlers() {
 	if (state.scanTimer !== null) {
@@ -160,8 +160,8 @@ function scanDOMAndAttachHandlers() {
 
 /**
  * Schedules a debounced scan of the page.
+ * Prevents excessive scanning when the DOM changes rapidly (e.g., during scrolling). Only one scan will run after changes settle. When force=true, ensures a fresh scan happens even if one is pending.
  * @param {boolean} force - If true, clears any pending scan and schedules a new one immediately
- * @why Prevents excessive scanning when the DOM changes rapidly (e.g., during scrolling). Only one scan will run after changes settle. When force=true, ensures a fresh scan happens even if one is pending.
  */
 function scheduleScan(force = false) {
 	if (force && state.scanTimer !== null) {
@@ -174,7 +174,7 @@ function scheduleScan(force = false) {
 
 /**
  * Initializes DOM mutation observers and event listeners to detect page changes.
- * @why The saved posts page loads content dynamically as you scroll. We need to watch for new posts being added to the DOM and re-scan when the page becomes visible again (e.g., when switching tabs back to Bluesky).
+ * The saved posts page loads content dynamically as you scroll. We need to watch for new posts being added to the DOM and re-scan when the page becomes visible again (e.g., when switching tabs back to Bluesky).
  */
 function initObservers() {
 	const observer = new MutationObserver((mutations) => {
@@ -237,7 +237,7 @@ function initObservers() {
 
 /**
  * Initializes the extension by setting up observers and running the initial scan.
- * @why This is the entry point that sets up all the necessary infrastructure (DOM watching, event listeners) and performs the first scan to find saved posts.
+ * This is the entry point that sets up all the necessary infrastructure (DOM watching, event listeners) and performs the first scan to find saved posts.
  */
 function bootstrap() {
 	initObservers();
