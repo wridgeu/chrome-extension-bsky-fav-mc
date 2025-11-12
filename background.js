@@ -1,4 +1,4 @@
-// MV3 service worker: renders the Bluesky glyph, overlays the count, and keeps tab badges in sync
+// MV3 service worker: renders the Bluesky glyph, swaps icon state, and syncs the action badge
 
 const ICON_SIZES = [16, 32];
 const FILL_COLORS = {
@@ -12,13 +12,15 @@ const MAX_SHOWN_COUNT = 99;
 let svgPathData = null;
 let svgViewBoxSize = 640;
 
-const renderedIconCache = new Map(); // key => {16: ImageData, 32: ImageData}
+const renderedIconCache = new Map(); // state => {16: ImageData, 32: ImageData}
 const tabCounts = new Map();
 
 const isSavedUrl = (url = '') => /^https:\/\/bsky\.app\/saved/.test(url);
-const cacheKey = (state, label) => `${state}:${label}`;
-const limitCountLabel = (count = 0) =>
-	count > MAX_SHOWN_COUNT ? String(MAX_SHOWN_COUNT) : count > 0 ? String(count) : '';
+const limitCountLabel = (count = 0) => {
+	if (count <= 0 || !Number.isFinite(count)) return '';
+	if (count > MAX_SHOWN_COUNT) return `${MAX_SHOWN_COUNT}+`;
+	return String(count);
+};
 
 async function ensureSvgPathLoaded() {
 	if (svgPathData) return;
@@ -44,18 +46,19 @@ async function ensureSvgPathLoaded() {
 	}
 }
 
-async function getIconImages(state, count) {
+async function getIconImages(state) {
 	await ensureSvgPathLoaded();
-	const label = limitCountLabel(count);
-	const key = cacheKey(state, label);
-	if (renderedIconCache.has(key)) {
-		return renderedIconCache.get(key);
+	if (renderedIconCache.has(state)) {
+		return renderedIconCache.get(state);
 	}
 
 	const images = {};
 	for (const size of ICON_SIZES) {
 		const canvas = new OffscreenCanvas(size, size);
 		const ctx = canvas.getContext('2d', { alpha: true });
+		if (!ctx) {
+			continue;
+		}
 		ctx.clearRect(0, 0, size, size);
 
 		ctx.save();
@@ -66,30 +69,24 @@ async function getIconImages(state, count) {
 		ctx.fill(path);
 		ctx.restore();
 
-		if (label) {
-			const fontSize = Math.max(8, Math.floor(size * 0.7));
-			ctx.font = `700 ${fontSize}px "Segoe UI", "Helvetica Neue", Arial, sans-serif`;
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.lineWidth = Math.max(1, Math.ceil(size * 0.15));
-			ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-			ctx.strokeText(label, size / 2, size / 2);
-			ctx.fillStyle = '#FFFFFF';
-			ctx.fillText(label, size / 2, size / 2);
-		}
-
 		images[size] = ctx.getImageData(0, 0, size, size);
 	}
 
-	renderedIconCache.set(key, images);
+	renderedIconCache.set(state, images);
 	return images;
 }
 
 async function applyIcon(tabId, count) {
 	const state = count > 0 ? 'enabled' : 'disabled';
+	const badgeText = limitCountLabel(count);
 	try {
-		const imageData = await getIconImages(state, count);
+		const imageData = await getIconImages(state);
 		await chrome.action.setIcon({ tabId, imageData });
+		await chrome.action.setBadgeBackgroundColor({
+			tabId,
+			color: state === 'enabled' ? '#1976D2' : '#616161',
+		});
+		await chrome.action.setBadgeText({ tabId, text: badgeText });
 		await chrome.action.setTitle({
 			tabId,
 			title: state === 'enabled' ? 'Bluesky Saved: posts detected' : 'Bluesky Saved: no posts detected',
