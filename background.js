@@ -53,6 +53,7 @@ async function ensureSvgPathLoaded() {
  */
 async function getIconImages(state) {
 	await ensureSvgPathLoaded();
+	/** @type {{ [size: number]: ImageData }} */
 	const images = {};
 	for (const size of ICON_SIZES) {
 		const canvas = new OffscreenCanvas(size, size);
