@@ -13,12 +13,22 @@ let svgPathData = null;
 
 const tabCounts = new Map();
 
+/**
+ * Formats the count for display in the badge, capping at MAX_SHOWN_COUNT.
+ * @param {number} count - The post count
+ * @returns {string} Formatted label or empty string if count is 0
+ * @why Badge space is limited, so we cap at 99+ for readability. Empty string hides the badge when there are no posts.
+ */
 const limitCountLabel = (count = 0) => {
 	if (count <= 0 || !Number.isFinite(count)) return '';
 	if (count > MAX_SHOWN_COUNT) return `${MAX_SHOWN_COUNT}+`;
 	return String(count);
 };
 
+/**
+ * Loads and parses the SVG icon file to extract the path data.
+ * @why Chrome extensions don't support SVG files directly for action icons. We need to extract the path data from the SVG file and render it using OffscreenCanvas to create ImageData that Chrome can use.
+ */
 async function ensureSvgPathLoaded() {
 	if (svgPathData) return;
 	const svgUrl = chrome.runtime.getURL(SVG_ICON_PATH);
@@ -34,6 +44,13 @@ async function ensureSvgPathLoaded() {
 	svgPathData = pathMatch[1];
 }
 
+/**
+ * Renders the Bluesky icon as ImageData for the given state (enabled/disabled).
+ * @param {'enabled' | 'disabled'} state - Icon state
+ * @returns {Promise<Object<number, ImageData>>} Dictionary of size -> ImageData for each icon size
+ * @why Service workers can't use regular canvas elements (no DOM access). OffscreenCanvas is the only way to render graphics in a service worker. We render the SVG path with different colors (blue for enabled, gray for disabled) and convert to ImageData that Chrome's action API accepts.
+ * @see https://developer.chrome.com/docs/extensions/reference/api/action#method-setIcon
+ */
 async function getIconImages(state) {
 	await ensureSvgPathLoaded();
 	const images = {};
@@ -58,6 +75,12 @@ async function getIconImages(state) {
 	return images;
 }
 
+/**
+ * Updates the extension icon, badge, and title for a specific tab.
+ * @param {number} tabId - Chrome tab ID
+ * @param {number} count - Number of saved posts found
+ * @why This is the central function that updates all visual indicators (icon color, badge count, tooltip) based on the current post count. It's called whenever the count changes or when switching tabs.
+ */
 async function applyIcon(tabId, count) {
 	const state = count > 0 ? 'enabled' : 'disabled';
 	const badgeText = limitCountLabel(count);
@@ -78,16 +101,31 @@ async function applyIcon(tabId, count) {
 	}
 }
 
+/**
+ * Stores the count for a tab and updates the icon.
+ * @param {number} tabId - Chrome tab ID
+ * @param {number} count - Number of saved posts
+ * @returns {Promise<void>}
+ * @why We maintain per-tab counts so each tab shows its own accurate count. This function updates both the stored count and the visual icon.
+ */
 function setTabCount(tabId, count) {
 	tabCounts.set(tabId, count);
 	return applyIcon(tabId, count);
 }
 
+/**
+ * Resets a tab's count to 0 and updates the icon.
+ * @param {number} tabId - Chrome tab ID
+ * @returns {Promise<void>}
+ * @why When navigating away from the saved page or when a tab starts loading, we reset the count to 0 so the icon shows the disabled state.
+ */
 function resetTab(tabId) {
 	tabCounts.set(tabId, 0);
 	return applyIcon(tabId, 0);
 }
 
+// Listen for count updates from content script
+// @why The content script scans the page and sends FOUND_COUNT messages whenever the post count changes. This keeps the icon badge synchronized with the actual number of visible saved posts.
 chrome.runtime.onMessage.addListener((message, sender) => {
 	if (!sender?.tab?.id || !message || message.type !== 'FOUND_COUNT') {
 		return;
@@ -97,12 +135,16 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 	setTabCount(tabId, count);
 });
 
+// Reset icon when tab navigates or starts loading
+// @why When a user navigates to a different page or the tab starts loading, we reset the count to 0 so the icon shows the disabled state immediately, rather than showing stale data.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 	if (changeInfo.status === 'loading' || changeInfo.url) {
 		resetTab(tabId);
 	}
 });
 
+// Update icon when switching to a different tab
+// @why Each tab maintains its own count. When you switch tabs, we need to restore the correct icon state for that tab (blue with count if on saved page, gray if not).
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 	try {
 		const currentCount = tabCounts.get(tabId) ?? 0;
@@ -112,6 +154,8 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 	}
 });
 
+// Clean up count when tab is closed
+// @why Prevent memory leaks by removing stored counts for tabs that no longer exist.
 chrome.tabs.onRemoved.addListener((tabId) => {
 	tabCounts.delete(tabId);
 });
