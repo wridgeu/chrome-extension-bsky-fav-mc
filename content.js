@@ -160,9 +160,14 @@ function scanDOMAndAttachHandlers() {
 
 /**
  * Schedules a debounced scan of the page.
- * @why Prevents excessive scanning when the DOM changes rapidly (e.g., during scrolling). Only one scan will run after changes settle.
+ * @param {boolean} force - If true, clears any pending scan and schedules a new one immediately
+ * @why Prevents excessive scanning when the DOM changes rapidly (e.g., during scrolling). Only one scan will run after changes settle. When force=true, ensures a fresh scan happens even if one is pending.
  */
-function scheduleScan() {
+function scheduleScan(force = false) {
+	if (force && state.scanTimer !== null) {
+		clearTimeout(state.scanTimer);
+		state.scanTimer = null;
+	}
 	if (state.scanTimer !== null) return;
 	state.scanTimer = setTimeout(scanDOMAndAttachHandlers, SCAN_DEBOUNCE_MS);
 }
@@ -190,13 +195,41 @@ function initObservers() {
 		// Observing may fail in rare cases; rely on other signals
 	}
 
-	window.addEventListener('pageshow', scheduleScan, { passive: true });
-	window.addEventListener('popstate', scheduleScan, { passive: true });
-	window.addEventListener('focus', scheduleScan, { passive: true });
+	window.addEventListener('pageshow', (event) => {
+		// Reset state when page is shown (including back/forward navigation and BFCache restores)
+		if (event.persisted || isOnSavedPage()) {
+			state.lastReportedCount = -1;
+			scheduleScan(true); // Force a fresh scan
+		} else {
+			scheduleScan();
+		}
+	}, { passive: true });
+	window.addEventListener('popstate', () => {
+		// Reset state on client-side route changes
+		state.lastReportedCount = -1;
+		scheduleScan(true); // Force a fresh scan
+	}, { passive: true });
+	window.addEventListener('focus', () => {
+		// Reset state when window regains focus (e.g., returning from another tab)
+		if (isOnSavedPage()) {
+			state.lastReportedCount = -1;
+			scheduleScan(true); // Force a fresh scan
+		} else {
+			scheduleScan();
+		}
+	}, { passive: true });
 	document.addEventListener(
 		'visibilitychange',
 		() => {
-			if (document.visibilityState === 'visible') scheduleScan();
+			if (document.visibilityState === 'visible') {
+				// Reset state when page becomes visible
+				if (isOnSavedPage()) {
+					state.lastReportedCount = -1;
+					scheduleScan(true); // Force a fresh scan
+				} else {
+					scheduleScan();
+				}
+			}
 		},
 		{ passive: true },
 	);
