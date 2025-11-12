@@ -1,5 +1,5 @@
 {
-  "name": "chrome-extension-bsky-mm",
+  "name": "chrome-extension-bsky-fav-mc",
   "version": "1.0.0",
   "description": "Chrome extension for Bluesky saved posts middle-click navigation",
   "main": "background.js",
@@ -10,7 +10,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "Unlicense",
   "type": "module",
   "devDependencies": {
     "@types/chrome": "^0.1.28",

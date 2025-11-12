@@ -22,7 +22,7 @@ What would I do differently next time? Well under the cirumstances I just wanted
 ## Installation
 1. Visit `chrome://extensions`.
 2. Enable **Developer mode** (top right).
-3. Click **Load unpacked** and choose the repository folder (`chrome-extension-bsky-mm`).
+3. Click **Load unpacked** and choose the repository folder (`chrome-extension-bsky-fav-mc`).
 4. Navigate to `https://bsky.app/saved` to see the extension in action.
 
 ## How It Works
