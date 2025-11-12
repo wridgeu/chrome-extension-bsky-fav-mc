@@ -4,7 +4,6 @@
 
 const PROFILE_POST_SELECTOR = 'a[href^="/profile/"][href*="/post/"]';
 const HANDLED_CONTAINER_FLAG = 'bskySavedHandled';
-const HANDLED_ANCHOR_FLAG = 'bskySavedHandledAnchor';
 const SCAN_DEBOUNCE_MS = 100;
 const MIDDLE_BUTTON = 1;
 
