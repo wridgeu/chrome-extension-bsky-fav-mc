@@ -120,16 +120,6 @@ function setTabCount(tabId, count) {
 	return applyIcon(tabId, count);
 }
 
-/**
- * Resets a tab's count to 0 and updates the icon.
- * When navigating away from the saved page or when a tab starts loading, we reset the count to 0 so the icon shows the disabled state.
- * @param {number} tabId - Chrome tab ID
- * @returns {Promise<void>}
- */
-function resetTab(tabId) {
-	tabCounts.set(tabId, 0);
-	return applyIcon(tabId, 0);
-}
 
 // Listen for count updates from content script
 // The content script scans the page and sends FOUND_COUNT messages whenever the post count changes. This keeps the icon badge synchronized with the actual number of visible saved posts.
@@ -146,7 +136,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 // When a user navigates to a different page or the tab starts loading, we reset the count to 0 so the icon shows the disabled state immediately, rather than showing stale data.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 	if (changeInfo.status === 'loading' || changeInfo.url) {
-		resetTab(tabId);
+		setTabCount(tabId, 0);
 	}
 });
 
